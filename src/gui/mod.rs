@@ -62,7 +62,7 @@ pub fn gui(dirs: Dirs, args: Option<Vec<String>>) -> Result<(), MintError> {
         ..Default::default()
     };
     eframe::run_native(
-        &format!("mint {}", env!("CARGO_PKG_VERSION")),
+        &format!("mint {}", mint_lib::built_info::GIT_VERSION.unwrap()),
         options,
         Box::new(|cc| Ok(Box::new(App::new(cc, dirs, args)?))),
     )
@@ -197,7 +197,7 @@ impl LastAction {
         let duration = Instant::now().duration_since(self.timestamp);
         let seconds = duration.as_secs();
         if seconds < 60 {
-            format!("{}s ago", seconds)
+            format!("{seconds}s ago")
         } else if seconds < 3600 {
             format!("{}m ago", seconds / 60)
         } else {
@@ -456,22 +456,22 @@ impl App {
                     ui.add_enabled(false, icon);
                 }
 
-                if mc.enabled {
-                    if let Some(req) = &self.integrate_rid {
-                        match req.state.get(&mc.spec) {
-                            Some(SpecFetchProgress::Progress { progress, size }) => {
-                                ui.add(
-                                    egui::ProgressBar::new(*progress as f32 / *size as f32)
-                                        .show_percentage()
-                                        .desired_width(100.0),
-                                );
-                            }
-                            Some(SpecFetchProgress::Complete) => {
-                                ui.add(egui::ProgressBar::new(1.0).desired_width(100.0));
-                            }
-                            None => {
-                                ui.spinner();
-                            }
+                if mc.enabled
+                    && let Some(req) = &self.integrate_rid
+                {
+                    match req.state.get(&mc.spec) {
+                        Some(SpecFetchProgress::Progress { progress, size }) => {
+                            ui.add(
+                                egui::ProgressBar::new(*progress as f32 / *size as f32)
+                                    .show_percentage()
+                                    .desired_width(100.0),
+                            );
+                        }
+                        Some(SpecFetchProgress::Complete) => {
+                            ui.add(egui::ProgressBar::new(1.0).desired_width(100.0));
+                        }
+                        None => {
+                            ui.spinner();
                         }
                     }
                 }
@@ -547,7 +547,7 @@ impl App {
                         .on_hover_text_at_pointer("copy URL")
                         .clicked()
                     {
-                        ui.output_mut(|o| o.copied_text = mc.spec.url.to_string());
+                        ui.ctx().copy_text(mc.spec.url.to_string());
                     }
 
                     if mc.enabled {
@@ -647,7 +647,7 @@ impl App {
                         .on_hover_text_at_pointer("Copy URL")
                         .clicked()
                     {
-                        ui.output_mut(|o| o.copied_text = mc.spec.url.to_string());
+                        ui.ctx().copy_text(mc.spec.url.to_string());
                     }
 
                     let search = searchable_text(&mc.spec.url, &self.search_string, {
@@ -726,7 +726,7 @@ impl App {
                     .sorted_by(|a, b| comp((a.1 .0, a.1 .1.as_ref()), (b.1 .0, b.1 .1.as_ref())))
                     .enumerate()
                     .for_each(|(visual_index, (store_index, item))| {
-                        let mut frame = egui::Frame::none();
+                        let mut frame = egui::Frame::NONE;
                         if visual_index % 2 == 1 {
                             frame.fill = ui.visuals().faint_bg_color
                         }
@@ -742,7 +742,7 @@ impl App {
                     .show(
                         profile.mods.iter_mut().enumerate(),
                         |ui, (_index, item), handle, state| {
-                            let mut frame = egui::Frame::none();
+                            let mut frame = egui::Frame::NONE;
                             if state.dragged {
                                 frame.fill = ui.visuals().extreme_bg_color
                             } else if state.index % 2 == 1 {
@@ -822,7 +822,7 @@ impl App {
                 .fixed_pos(Pos2::ZERO)
                 .order(egui::Order::Background)
                 .show(ctx, |ui| {
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 127))
                         .show(ui, |ui| {
                             ui.allocate_space(ui.available_size());
@@ -1033,15 +1033,14 @@ impl App {
                             if is_committed(&res) {
                                 try_save = true;
                             }
-                            if ui.button("browse").clicked() {
-                                if let Some(fsd_pak) = rfd::FileDialog::new()
+                            if ui.button("browse").clicked()
+                                && let Some(fsd_pak) = rfd::FileDialog::new()
                                     .add_filter("DRG Pak", &["pak"])
                                     .pick_file()
                                 {
                                     window.drg_pak_path = fsd_pak.to_string_lossy().to_string();
                                     window.drg_pak_path_err = None;
                                 }
-                            }
                         });
                         ui.end_row();
 
@@ -1287,8 +1286,8 @@ impl App {
                             .show(ui, |ui| {
                                 const AMBER: Color32 = Color32::from_rgb(255, 191, 0);
 
-                                if let Some(conflicting_mods) = &report.conflicting_mods {
-                                    if !conflicting_mods.is_empty() {
+                                if let Some(conflicting_mods) = &report.conflicting_mods
+                                    && !conflicting_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new("⚠ Mods(s) with conflicting asset modifications detected")
                                                 .color(AMBER),
@@ -1298,8 +1297,7 @@ impl App {
                                             conflicting_mods.iter().for_each(|(path, mods)| {
                                                 CollapsingHeader::new(
                                                     RichText::new(format!(
-                                                        "⚠ Conflicting modification of asset `{}`",
-                                                        path
+                                                        "⚠ Conflicting modification of asset `{path}`"
                                                     ))
                                                     .color(AMBER),
                                                 )
@@ -1314,10 +1312,9 @@ impl App {
                                             });
                                         });
                                     }
-                                }
 
-                                if let Some(asset_register_bin_mods) = &report.asset_register_bin_mods {
-                                    if !asset_register_bin_mods.is_empty() {
+                                if let Some(asset_register_bin_mods) = &report.asset_register_bin_mods
+                                    && !asset_register_bin_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new("ℹ Mod(s) with `AssetRegistry.bin` included detected")
                                                 .color(Color32::LIGHT_BLUE),
@@ -1342,10 +1339,9 @@ impl App {
                                             );
                                         });
                                     }
-                                }
 
-                                if let Some(shader_file_mods) = &report.shader_file_mods {
-                                    if !shader_file_mods.is_empty() {
+                                if let Some(shader_file_mods) = &report.shader_file_mods
+                                    && !shader_file_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mods(s) with shader files included detected",
@@ -1372,10 +1368,9 @@ impl App {
                                             );
                                         });
                                     }
-                                }
 
-                                if let Some(outdated_pak_version_mods) = &report.outdated_pak_version_mods {
-                                    if !outdated_pak_version_mods.is_empty() {
+                                if let Some(outdated_pak_version_mods) = &report.outdated_pak_version_mods
+                                    && !outdated_pak_version_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with outdated pak version detected",
@@ -1397,10 +1392,9 @@ impl App {
                                             );
                                         });
                                     }
-                                }
 
-                                if let Some(empty_archive_mods) = &report.empty_archive_mods {
-                                    if !empty_archive_mods.is_empty() {
+                                if let Some(empty_archive_mods) = &report.empty_archive_mods
+                                    && !empty_archive_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with empty archives detected",
@@ -1420,10 +1414,9 @@ impl App {
                                             });
                                         });
                                     }
-                                }
 
-                                if let Some(archive_with_only_non_pak_files_mods) = &report.archive_with_only_non_pak_files_mods {
-                                    if !archive_with_only_non_pak_files_mods.is_empty() {
+                                if let Some(archive_with_only_non_pak_files_mods) = &report.archive_with_only_non_pak_files_mods
+                                    && !archive_with_only_non_pak_files_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with only non-`.pak` files detected",
@@ -1443,10 +1436,9 @@ impl App {
                                             });
                                         });
                                     }
-                                }
 
-                                if let Some(archive_with_multiple_paks_mods) = &report.archive_with_multiple_paks_mods {
-                                    if !archive_with_multiple_paks_mods.is_empty() {
+                                if let Some(archive_with_multiple_paks_mods) = &report.archive_with_multiple_paks_mods
+                                    && !archive_with_multiple_paks_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with multiple `.pak`s detected",
@@ -1464,10 +1456,9 @@ impl App {
                                             });
                                         });
                                     }
-                                }
 
-                                if let Some(non_asset_file_mods) = &report.non_asset_file_mods {
-                                    if !non_asset_file_mods.is_empty() {
+                                if let Some(non_asset_file_mods) = &report.non_asset_file_mods
+                                    && !non_asset_file_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with non-asset files detected",
@@ -1492,10 +1483,9 @@ impl App {
                                             });
                                         });
                                     }
-                                }
 
-                                if let Some(split_asset_pairs_mods) = &report.split_asset_pairs_mods {
-                                    if !split_asset_pairs_mods.is_empty() {
+                                if let Some(split_asset_pairs_mods) = &report.split_asset_pairs_mods
+                                    && !split_asset_pairs_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with split {uexp, uasset} pairs detected",
@@ -1527,10 +1517,9 @@ impl App {
                                             });
                                         });
                                     }
-                                }
 
-                                if let Some(unmodified_game_assets_mods) = &report.unmodified_game_assets_mods {
-                                    if !unmodified_game_assets_mods.is_empty() {
+                                if let Some(unmodified_game_assets_mods) = &report.unmodified_game_assets_mods
+                                    && !unmodified_game_assets_mods.is_empty() {
                                         CollapsingHeader::new(
                                             RichText::new(
                                                 "⚠ Mod(s) with unmodified game assets detected",
@@ -1555,7 +1544,6 @@ impl App {
                                             });
                                         });
                                     }
-                                }
                             });
                     } else {
                         ui.spinner();
@@ -1740,8 +1728,8 @@ impl eframe::App for App {
                         && self.self_update_rid.is_none()
                         && self.state.config.drg_pak_path.is_some(),
                     |ui| {
-                        if let Some(args) = &self.args {
-                            if ui
+                        if let Some(args) = &self.args
+                            && ui
                                 .button("Launch game")
                                 .on_hover_ui(|ui| {
                                     for arg in args {
@@ -1749,18 +1737,17 @@ impl eframe::App for App {
                                     }
                                 })
                                 .clicked()
-                            {
-                                let args = args.clone();
-                                std::thread::spawn(move || {
-                                    let mut iter = args.iter();
-                                    std::process::Command::new(iter.next().unwrap())
-                                        .args(iter)
-                                        .spawn()
-                                        .unwrap()
-                                        .wait()
-                                        .unwrap();
-                                });
-                            }
+                        {
+                            let args = args.clone();
+                            std::thread::spawn(move || {
+                                let mut iter = args.iter();
+                                std::process::Command::new(iter.next().unwrap())
+                                    .args(iter)
+                                    .spawn()
+                                    .unwrap()
+                                    .wait()
+                                    .unwrap();
+                            });
                         }
 
                         ui.add_enabled_ui(self.state.config.drg_pak_path.is_some(), |ui| {
@@ -1874,22 +1861,17 @@ impl eframe::App for App {
                 if ui.button("⚙").on_hover_text("Open settings").clicked() {
                     self.settings_window = Some(WindowSettings::new(&self.state));
                 }
-                if let Some(available_update) = &self.available_update {
-                    if ui
+                if let Some(available_update) = &self.available_update
+                    && ui
                         .button(egui::RichText::new("\u{26A0}").color(ui.visuals().warn_fg_color))
                         .on_hover_text(format!(
                             "Update available: {}\n{}",
                             available_update.tag_name, available_update.html_url
                         ))
                         .clicked()
-                    {
-                        ui.ctx().output_mut(|o| {
-                            o.open_url = Some(egui::output::OpenUrl {
-                                url: available_update.html_url.clone(),
-                                new_tab: true,
-                            });
-                        });
-                    }
+                {
+                    ui.ctx()
+                        .open_url(egui::OpenUrl::new_tab(&available_update.html_url));
                 }
                 ui.with_layout(egui::Layout::left_to_right(Align::TOP), |ui| {
                     if let Some(last_action) = &self.last_action {
@@ -1936,7 +1918,7 @@ impl eframe::App for App {
                         mods.push(mc.clone());
                     });
                     let mods = Self::build_mod_string(&mods);
-                    ui.output_mut(|o| o.copied_text = mods);
+                    ui.ctx().copy_text(mods);
                 }
 
                 // TODO find better icon, flesh out multiple-view usage, fix GUI locking
